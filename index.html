@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Trojan Horse - AR</title>
+
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: Arial, sans-serif; }
+    #banner { position: fixed; top: 0; left: 0; width: 100%; box-sizing: border-box; z-index: 9999;
+              padding: 14px 8px; text-align: center; color: #fff; background: #8B0000; font-size: 15px; font-weight: bold; }
+    #help { position: fixed; bottom: 10px; left: 10px; right: 10px; z-index: 9999; color: #fff;
+            background: rgba(0,0,0,.7); padding: 8px; border-radius: 8px; text-align: center; font-size: 12px; pointer-events: none; }
+  </style>
+
+  <script>
+    function setBanner(text, color) {
+      const b = document.querySelector('#banner');
+      b.textContent = text;
+      b.style.background = color;
+    }
+
+    // Requirement 5: banner changes text AND colour when marker is found / lost
+    AFRAME.registerComponent('marker-banner', {
+      init: function () {
+        this.el.addEventListener('markerFound', () => setBanner('MARKER FOUND - TROY APPEARS!', '#286B35'));
+        this.el.addEventListener('markerLost', () => setBanner('MARKER LOST - SHOW THE HIRO MARKER', '#8B0000'));
+      }
+    });
+
+    // Requirement 4a: ball changes colour when tapped (workshop component)
+    AFRAME.registerComponent('color-changer', {
+      init: function () {
+        const colors = ['#FFD700', '#FF4500', '#00BFFF', '#32CD32', '#DA70D6'];
+        let i = 0;
+        this.el.addEventListener('click', () => {
+          i = (i + 1) % colors.length;
+          this.el.setAttribute('material', 'color', colors[i]);
+        });
+      }
+    });
+
+    // Requirement 4b: NEW component of my own - tapping the horse grows / shrinks it
+    AFRAME.registerComponent('grow-toggle', {
+      schema: { small: { default: 0.35 }, big: { default: 0.6 } },
+      init: function () {
+        let big = false;
+        this.el.addEventListener('click', () => {
+          big = !big;
+          const s = big ? this.data.big : this.data.small;
+          this.el.setAttribute('animation__grow', {
+            property: 'scale', to: s + ' ' + s + ' ' + s, dur: 600, easing: 'easeOutQuad'
+          });
+          this.el.sceneEl.emit(big ? 'descend' : 'retreat');
+          setBanner(big ? 'THE GREEK SOLDIERS EMERGE!' : 'THE SOLDIERS HIDE AGAIN', '#9B6500');
+        });
+      }
+    });
+
+    // Soldiers start hidden inside the horse and slide down to the ground
+    AFRAME.registerComponent('soldier-drop', {
+      schema: { from: { type: 'string' }, to: { type: 'string' }, delay: { default: 0 } },
+      init: function () {
+        const el = this.el, d = this.data;
+        el.setAttribute('visible', false);
+        el.setAttribute('position', d.from);
+        el.sceneEl.addEventListener('descend', () => {
+          el.setAttribute('position', d.from);
+          el.setAttribute('visible', true);
+          el.setAttribute('animation__drop', {
+            property: 'position', from: d.from, to: d.to,
+            dur: 1800, delay: d.delay, easing: 'easeOutQuad'
+          });
+        });
+        el.sceneEl.addEventListener('retreat', () => {
+          el.removeAttribute('animation__drop');
+          el.setAttribute('visible', false);
+          el.setAttribute('position', d.from);
+        });
+      }
+    });
+
+    // The city of Troy shakes when tapped, and when the soldiers come out of the horse
+    AFRAME.registerComponent('temple-quake', {
+      init: function () {
+        const el = this.el;
+        const quake = () => {
+          el.setAttribute('animation__quake', {
+            property: 'rotation', from: '0 -3 0', to: '0 3 0',
+            dir: 'alternate', dur: 90, loop: 8, easing: 'linear'
+          });
+        };
+        el.addEventListener('animationcomplete__quake', () => {
+          el.removeAttribute('animation__quake');
+          el.setAttribute('rotation', '0 0 0');
+        });
+        el.addEventListener('click', () => {
+          quake();
+          setBanner('THE WALLS OF TROY SHAKE!', '#9B6500');
+        });
+        el.sceneEl.addEventListener('descend', quake);
+      }
+    });
+
+    // Applies assets/images/ground.jpg (or .png) as a tiled ground texture. Keeps the sand colour if missing.
+    AFRAME.registerComponent('ground-texture', {
+      init: function () {
+        const folders = ['assets/images/', 'assets/', 'images/', ''];
+        const files = ['ground.jpg', 'ground.png', 'ground.jpeg', 'ground.webp', 'Ground.jpg', 'Ground.png',
+                       'ground.jpg.jpg', 'ground.jpg.png', 'ground.png.png', 'ground.png.jpg'];
+        const names = [];
+        folders.forEach((d) => files.forEach((f) => names.push(d + f)));
+        const el = this.el;
+        const tryNext = (i) => {
+          if (i >= names.length) { console.warn('GROUND TEXTURE NOT FOUND. Put ground.jpg in assets/images/ next to index.html'); return; }
+          const img = new Image();
+          img.onload = () => {
+            el.setAttribute('material', { src: 'url(' + names[i] + ')', repeat: '3 3', color: '#ffffff' });
+            console.log('Ground texture loaded:', names[i]);
+          };
+          img.onerror = () => tryNext(i + 1);
+          img.src = names[i];
+        };
+        tryNext(0);
+      }
+    });
+
+    // Loads the GLB without blocking the scene. Shows a brown box if the file is missing.
+    AFRAME.registerComponent('safe-model', {
+      schema: { src: { type: 'string' } },
+      init: function () {
+        const el = this.el;
+        el.addEventListener('model-error', () => {
+          console.warn('Model not found:', this.data.src);
+          el.removeAttribute('gltf-model');
+          el.setAttribute('geometry', 'primitive: box');
+          el.setAttribute('material', 'color: #8B5A2B');
+        });
+        el.setAttribute('gltf-model', this.data.src);
+      }
+    });
+
+    // Tap detection that works with AR.js (its camera breaks A-Frame's default raycaster)
+    AFRAME.registerComponent('tap-picker', {
+      init: function () {
+        const scene = this.el.sceneEl;
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+
+        window.addEventListener('pointerup', (e) => {
+          const canvas = scene.canvas;
+          const cam = scene.camera;
+          const marker = document.querySelector('a-marker');
+          if (!canvas || !cam || !marker || !marker.object3D.visible) return;
+
+          const r = canvas.getBoundingClientRect();
+          pointer.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+          pointer.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+
+          cam.updateMatrixWorld(true);
+          cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+          raycaster.setFromCamera(pointer, cam);
+
+          const targets = [];
+          document.querySelectorAll('.clickable').forEach((el) => targets.push(el.object3D));
+          const hits = raycaster.intersectObjects(targets, true);
+          if (!hits.length) return;
+
+          let o = hits[0].object;
+          while (o && !(o.el && o.el.classList && o.el.classList.contains('clickable'))) o = o.parent;
+          if (o && o.el) o.el.emit('click');
+        });
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const ok = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
+      if (!ok) setBanner('CAMERA NEEDS HTTPS OR LOCALHOST', '#8B0000');
+      const scene = document.querySelector('a-scene');
+      scene.addEventListener('camera-error', () => setBanner('CAMERA BLOCKED - ALLOW ACCESS', '#8B0000'));
+      scene.addEventListener('camera-init', () => setBanner('CAMERA READY - SHOW THE HIRO MARKER', '#1F4E8C'));
+    });
+  </script>
+</head>
+
+<body>
+  <div id="banner">STARTING...</div>
+  <div id="help">Tap the horse to grow it. Tap the city to shake it. Tap the golden ball on the flagpole to change its colour.</div>
+
+  <a-scene embedded tap-picker vr-mode-ui="enabled: false" renderer="alpha: true; antialias: true"
+          arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono; trackingMethod: best">
+
+    <a-entity light="type: ambient; intensity: 1.3"></a-entity>
+    <a-entity light="type: directional; color: #FFE0B0; intensity: 1.5" position="-2 5 3"></a-entity>
+
+    <a-marker preset="hiro" marker-banner>
+
+      <!-- Req 1: primitives (plane, box, cylinders, sphere) + a-text label -->
+      <a-plane ground-texture position="0 0 0" rotation="-90 0 0" width="2.5" height="2.5" color="#A58A62"></a-plane>
+
+      <a-box position="0 0.05 0" width="1.4" height="0.1" depth="1.4" color="#D8C8A8"></a-box>
+
+      <!-- City of Troy (GLB model) behind the horse -->
+      <a-entity class="clickable" temple-quake safe-model="src: assets/models/temple.glb"
+        position="0 0.1 -1.0" rotation="0 0 0" scale="0.7 0.7 0.7"></a-entity>
+
+      <!-- Req 2: rotating column (rotation animation) -->
+      <a-cylinder position="-0.9 0.5 -0.5" radius="0.12" height="1" color="#C9B48A"
+        animation="property: rotation; to: 0 360 0; dur: 4000; easing: linear; loop: true"></a-cylinder>
+
+      <a-cylinder position="0.9 0.5 -0.5" radius="0.12" height="1" color="#C9B48A"></a-cylinder>
+
+      <!-- Req 3: the 3D model (your Trojan horse GLB) + Req 4b: own component -->
+      <a-entity class="clickable" grow-toggle
+        safe-model="src: assets/models/trojan-horse.glb"
+        position="0 0.1 0" rotation="0 0 0" scale="0.35 0.35 0.35"></a-entity>
+
+      <!-- Greek soldiers (GLB model) that come out of the horse when it is tapped -->
+      <a-entity soldier-drop="from: -0.25 0.3 0; to: -0.3 0.1 0.6; delay: 0">
+        <a-entity safe-model="src: assets/models/greek-soldier.glb" scale="0.2 0.2 0.2" rotation="0 0 0"></a-entity>
+      </a-entity>
+
+      <a-entity soldier-drop="from: 0 0.3 0; to: 0 0.1 0.7; delay: 400">
+        <a-entity safe-model="src: assets/models/greek-soldier.glb" scale="0.2 0.2 0.2" rotation="0 0 0"></a-entity>
+      </a-entity>
+
+      <a-entity soldier-drop="from: 0.25 0.3 0; to: 0.3 0.1 0.6; delay: 800">
+        <a-entity safe-model="src: assets/models/greek-soldier.glb" scale="0.2 0.2 0.2" rotation="0 0 0"></a-entity>
+      </a-entity>
+
+      <!-- Req 2: bobbing ball (position animation) + Req 4a: colour change -->
+      <!-- Greek flag: pole + waving cloth + golden ball on top (tap the ball to change colour) -->
+      <a-cylinder position="0.8 0.6 0.5" radius="0.015" height="1" color="#777777"></a-cylinder>
+
+      <a-entity position="0.8 0.95 0.5"
+        animation="property: rotation; from: 0 -20 0; to: 0 20 0; dir: alternate; dur: 900; easing: easeInOutSine; loop: true">
+        <a-box position="0.17 0 0" width="0.34" height="0.22" depth="0.02" color="#1E4FBF"></a-box>
+        <a-box position="0.17 0 0.011" width="0.34" height="0.04" depth="0.005" color="#FFFFFF"></a-box>
+      </a-entity>
+
+      <a-sphere class="clickable" color-changer position="0.8 1.15 0.5" radius="0.09"
+        material="color: #FFD700; metalness: 0.7; roughness: 0.25"
+        animation="property: position; to: 0.8 1.22 0.5; dir: alternate; dur: 1200; easing: easeInOutSine; loop: true"></a-sphere>
+
+      <a-text value="THE TROJAN HORSE" position="0 1.6 0" align="center" color="#FFD700" width="3"></a-text>
+
+    </a-marker>
+
+    <!-- Camera + touch/mouse picking -->
+    <a-entity camera></a-entity>
+  </a-scene>
+</body>
+</html>
