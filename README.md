@@ -17,7 +17,7 @@ Project Information
 * Group Number: Group 5
 * Technologies: HTML, CSS, JavaScript, A-Frame, AR.js
 * 3D Model Format: GLB
-* Tested Device and Browser: [Enter the device and browser used]
+* Tested Device and Browser: Opera Gx, Chrome, google, Phone, laptop
 
 How to Use
 
@@ -65,7 +65,7 @@ The project uses the following 3D models:
 Model	Project File	Source
 Trojan Horse	assets/models/trojan-horse.glb	Hyper3D Rodin
 Greek Soldier	assets/models/greek-soldier.glb	Hyper3D Rodin
-City of Troy / Fortress	assets/models/temple.glb	[Add the correct model workspace link]
+City of Troy / Fortress	assets/models/temple.glb	https://hyper3d.ai/workspace/rodin/a9e59773-d8ab-4ec9-ab12-a64124e97b06
 
 Licence Information: The models are identified as generated using Hyper3D Rodin. The applicable export and usage licence terms must be checked against Hyper3D’s current terms before submission. Add the exact licence wording and the date checked here.
 
@@ -92,8 +92,6 @@ Trojan-Horse-AR/
         ├── trojan-horse.glb
         ├── greek-soldier.glb
         └── temple.glb
-
-Note: Make sure these names match the actual files in your repository.
 
 Run Locally
 
